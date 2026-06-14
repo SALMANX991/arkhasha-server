@@ -7,6 +7,7 @@ app.use(cors());
 app.use(express.json());
 
 const SERP_API_KEY = process.env.SERP_API_KEY;
+const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 
 const TO_SAR = { SAR: 1, USD: 3.75, AED: 1.02, KWD: 12.2, EUR: 4.1, GBP: 4.8 };
 function toSAR(price, currency = "SAR") {
@@ -23,10 +24,8 @@ app.get("/api/prices", async (req, res) => {
     url.searchParams.set("gl", "sa");
     url.searchParams.set("hl", "ar");
     url.searchParams.set("api_key", SERP_API_KEY);
-
     const data = await fetch(url.toString()).then(r => r.json());
     if (data.error) throw new Error(data.error);
-
     const results = (data.shopping_results || [])
       .slice(0, 8)
       .map(item => {
@@ -46,8 +45,25 @@ app.get("/api/prices", async (req, res) => {
       })
       .filter(r => r.price > 0)
       .sort((a, b) => a.price - b.price);
-
     res.json({ query: q, count: results.length, results });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/ai", async (req, res) => {
+  try {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify(req.body),
+    });
+    const data = await response.json();
+    res.json(data);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
